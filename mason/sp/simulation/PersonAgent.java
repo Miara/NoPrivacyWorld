@@ -6,16 +6,23 @@
 
 package sp.simulation;
 
-import java.util.Set;
+import java.util.logging.Logger;
 
 import ec.util.MersenneTwisterFast;
 import sim.engine.*;
-import sim.field.grid.*;
+import sp.simulation.game.Game;
+import sp.simulation.game.GamePair;
+import sp.simulation.game.creation.GameCreationService;
+import sp.simulation.game.creation.MiSymmetricalSimpleGameCreationImpl;
+import sp.simulation.game.creation.SimpleGameCreationImpl;
+import sp.simulation.game.decision.GameDecisionService;
+import sp.simulation.game.decision.SimpleDecisionByMiImpl;
 
 public class PersonAgent implements Steppable
 {
     private static final long serialVersionUID = 1;
-
+    static final Logger logger = Logger.getAnonymousLogger();
+    
     // the width and height will change later
 	private MersenneTwisterFast random = new MersenneTwisterFast();
 
@@ -24,9 +31,14 @@ public class PersonAgent implements Steppable
     private double willnessToInitiateGame;//[0,1]
     private double uncertaintyMi;
     private double uncertaintySigma;
+    private Fairness fairness;
+
+	private GameDecisionService gameDecisionService;
+    private GameCreationService gameCreationService;
     
+    private double[] trustTable;
 
-
+    private double lastWinning;
 	/**	in builder pattern we get MersenneTwisterFast random because as there is stated in documentation:
 	 * 
 	 * "The standard MT199937 seeding algorithm uses one of Donald Knuth’s plain-jane linear
@@ -35,8 +47,6 @@ public class PersonAgent implements Steppable
 	 * about 624 calls to the generator, it’ll be warmed up sufficiently. As a result, in SimState.start(), MASON
 	 * primes the MT generator for you by calling nextInt() 1249 times."
 	 */
-	
-    
     public static class Builder {
     	
     	private final int number;
@@ -45,6 +55,9 @@ public class PersonAgent implements Steppable
         private double willnessToInitiateGame = 0.5; //[0,1]
         private double uncertaintyMi = 0.0;
         private double uncertaintySigma = 0.0;
+        private Fairness fairness = Fairness.FAIR;
+        private GameDecisionService gameDecisionService = new SimpleDecisionByMiImpl();
+        private GameCreationService gameCreationService = new SimpleGameCreationImpl();
         
 		public Builder(int number, MersenneTwisterFast random) {
 			this.number = number;
@@ -71,13 +84,31 @@ public class PersonAgent implements Steppable
 			return this;
 		}
 		
+		public Builder fairness(Fairness fairness) {
+			this.fairness = fairness;
+			return this;
+		}
+		
+		public Builder gameDecisionService(GameDecisionService gameDecisionService) {
+			this.gameDecisionService = gameDecisionService;
+			return this;
+		}
+		
+		public Builder gameCreationService(GameCreationService gameCreationService) {
+			this.gameCreationService = gameCreationService;
+			return this;
+		}
+		
 		public PersonAgent build() {
 			PersonAgent personAgent = new PersonAgent(this);
 			System.out.println("create #" + personAgent.getNumber() + 
         			"  wealth: " + personAgent.getWealth() +
         			"  willnessToInitiate: " + personAgent.getWillnessToInitiateGame() +
         			"  uncertaintyMi: " + personAgent.getUncertaintyMi() +
-        			"  uncertaintySigma: " + personAgent.getUncertaintySigma()
+        			"  uncertaintySigma: " + personAgent.getUncertaintySigma() +
+        			"  fairness: " + personAgent.getFairness() +
+        			"  gameDecisionService: " + "COMMENTTOWRITE" +
+        			"  gameCreationService: " + "COMMENTTOWRITE"
         			);
 			return new PersonAgent(this);
 		}  
@@ -90,6 +121,14 @@ public class PersonAgent implements Steppable
     	this.willnessToInitiateGame = builder.willnessToInitiateGame;
     	this.uncertaintyMi = builder.uncertaintyMi;
     	this.uncertaintySigma = builder.uncertaintySigma;
+    	this.fairness = builder.fairness;
+    	this.gameDecisionService = builder.gameDecisionService;
+    	this.gameCreationService = builder.gameCreationService;
+    	
+    	trustTable = new double[100];
+    	for(int i = 0; i < 100; i++) {
+    		trustTable[i]=0.01;
+    	}
     }
     
     /**
@@ -101,63 +140,56 @@ public class PersonAgent implements Steppable
     public void step(SimState state){
         SimulationEngine simulationEngine = (SimulationEngine)state;
         
+        for(double i : trustTable) {
+    		i+=0.1;
+    	}
         if(ifInitiateGame()) {
-        	Game game = new Game(random);
-        	if(ifPlayGame(game)) {
-                int personAgentIndex = getRandomPersonNumber(simulationEngine);
-        		if(simulationEngine.getPersonAgent(personAgentIndex).playGameWithMe(number, game)) {
+        	GamePair gamePair = gameCreationService.createGame(this, random);
+        	Game game = gamePair.getL();
+        	Game opponentsGame = gamePair.getR();
+
+            int personAgentIndex = getRandomPersonNumber(simulationEngine);
+        	if(gameDecisionService.ifPlayGame(this, game, trustTable[personAgentIndex])) {
+        		if(simulationEngine.getPersonAgent(personAgentIndex).playGameWithMe(number, opponentsGame)) {
         			playGame(game);
-        			System.out.println("   Agent #" + number + " played with agent #" + personAgentIndex + 
-        					" in game. mi=" + game.getMi() + " sigma=" + game.getSigma() + 
-        					" \n         uMi=" + game.getUncertainMi(uncertaintyMi) + 
-        					" uSigma=" + game.getUncertainSigma(uncertaintySigma));
+        			//TODO przesun¹æ jakoœ do playGame
+        			trustTable[personAgentIndex] = Tools.round(trustTable[personAgentIndex]+lastWinning);
+        			System.out.println("   Agent #" + number + " has played with agent #" + personAgentIndex + 
+        					" \n      Game1. mi=" + game.getMi() + " sigma=" + game.getSigma() + 
+        					" \n         " + game.toStringLastUncertains() + 
+        					" \n      Game2. mi=" + opponentsGame.getMi() + " sigma=" + opponentsGame.getSigma() + 
+        					" \n         " + opponentsGame.toStringLastUncertains());
             		
         		}
         		else {
-                	System.out.println("   Agent #" + number + " won't play with agent #" + personAgentIndex + 
-                			" in game. mi=" + game.getMi() + " sigma=" + game.getSigma() +
-        					" \n         uMi=" + game.getUncertainMi(uncertaintyMi) + 
-        					" uSigma=" + game.getUncertainSigma(uncertaintySigma));
+//                	System.out.println("   Agent #" + number + " won't play with agent #" + personAgentIndex + 
+//                			" in game. mi=" + game.getMi() + " sigma=" + game.getSigma() +
+//        					" \n         uMi=" + game.getUncertainMi(uncertaintyMi) + 
+//        					" uSigma=" + game.getUncertainSigma(uncertaintySigma));
         		}
         	}
         	else {
-            	System.out.println("   Agent #" + number + " doesn't like the game." + 
-            			" mi=" + game.getMi() + " sigma=" + game.getSigma() +
-    					" \n         uMi=" + game.getUncertainMi(uncertaintyMi) + 
-    					" uSigma=" + game.getUncertainSigma(uncertaintySigma));
+//            	System.out.println("   Agent #" + number + " doesn't like the game." + 
+//            			" mi=" + game.getMi() + " sigma=" + game.getSigma() +
+//    					" \n         uMi=" + game.getUncertainMi(uncertaintyMi) + 
+//    					" uSigma=" + game.getUncertainSigma(uncertaintySigma));
         	}
         }
         else {
-        	System.out.println("   Agent #" + number + " won't initiate the game.");
+//        	System.out.println("   Agent #" + number + " won't initiate the game.");
         }
         
     }
-    
-    /**
-     * 
-     * @param game
-     * @return
-     * 
-     * simple check if agent want to play - he checks if mean of left constraint and right constraint is greater than 0.0.
-     */
-    public boolean ifPlayGame(Game game) {
-    	//TODO injection of that method
-    	DoublePair uMi = game.getUncertainMi(uncertaintyMi);
-    	double mean = (uMi.getR()+uMi.getL())/2;
-    	
-    	if( mean >= 0.0)
-    		return true;
-    	return false;
-    }
-    
+       
     public void playGame(Game game) {
     	double value = game.play();
     	changeWealth(value);
-    	System.out.println("      Agent #" + number + " has got winning=" + value);
+    	lastWinning = value;
+    	System.out.println(" Agent #" + number + " has got winning=" + value);
     }
     
     public boolean playGameWithMe(int gameInitiatorNumber, Game game) {
-    	if(ifPlayGame(game)) {
+    	if(gameDecisionService.ifPlayGame(this, game, trustTable[gameInitiatorNumber])) {
     		playGame(game);
     		return true;
     	}
@@ -177,10 +209,6 @@ public class PersonAgent implements Steppable
     	return randomPersonNumber;
     }
     
-    public String introduceYourself() {
-    	return ("I'm " + number);
-    }
-    
 	public int getNumber() {
 		return number;
 	}
@@ -194,7 +222,7 @@ public class PersonAgent implements Steppable
 	}
 	
 	public double changeWealth(double delta) {
-		wealth += delta;
+		wealth = Tools.round(wealth + delta);
 		return wealth;
 	}
 	
@@ -221,5 +249,12 @@ public class PersonAgent implements Steppable
 	public void setUncertaintySigma(double uncertaintySigma) {
 		this.uncertaintySigma = uncertaintySigma;
 	}
-        
+	
+    public Fairness getFairness() {
+		return fairness;
+	}
+
+	public void setFairness(Fairness fairness) {
+		this.fairness = fairness;
+	}
 }

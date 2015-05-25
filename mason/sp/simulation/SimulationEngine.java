@@ -15,7 +15,7 @@ import sim.field.grid.*;
 public class SimulationEngine extends SimState
 {
 
-    private int personsLimit = 20; //number of personAgents
+    private int personsLimit = 24; //number of personAgents
     private int stepsLimit = 20; // number of steps, each step consists of each agent trying to initiate game with random agent (not himself)
 
     private ArrayList<PersonAgent> personAgentArray;
@@ -38,8 +38,10 @@ public class SimulationEngine extends SimState
     	
     	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(0.5).uncertaintySigma(0.8).build();
 		actualNumber = multiplyPeopleAgent(p, 10, actualNumber);
+		p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.5).uncertaintyMi(0.0).build();
+		actualNumber = multiplyPeopleAgent(p, 10, actualNumber);
     	for(int number=actualNumber; number<getPersonsLimit(); number++){
-    		p = new PersonAgent.Builder(number, random).willnessToInitiateGame(0.5).uncertaintyMi(0.0).build();
+    		p = new PersonAgent.Builder(number, random).willnessToInitiateGame(0.5).uncertaintyMi(0.0).fairness(Fairness.UNFAIR).build();
     		personAgentArray.add(p);
             schedule.scheduleRepeating(p);
     	}
@@ -79,7 +81,8 @@ public class SimulationEngine extends SimState
         			"  wealth: " + personAgent.getWealth() +
         			"  willnessToInitiate: " + personAgent.getWillnessToInitiateGame() +
         			"  uncertaintyMi: " + personAgent.getUncertaintyMi() +
-        			"  uncertaintySigma: " + personAgent.getUncertaintySigma()
+        			"  uncertaintySigma: " + personAgent.getUncertaintySigma() +
+        			"  fairness: " + personAgent.getFairness()
         			);
         }
     }
