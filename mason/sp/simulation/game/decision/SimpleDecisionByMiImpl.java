@@ -6,10 +6,6 @@ import sp.simulation.game.Game;
 
 public class SimpleDecisionByMiImpl implements GameDecisionService{
 	/**
-     * 
-     * @param game
-     * @return
-     * 
      * simple check if agent want to play - he checks if mean of left constraint and right constraint is greater than 0.0.
      */
 	@Override
@@ -25,6 +21,16 @@ public class SimpleDecisionByMiImpl implements GameDecisionService{
 	    		return true;
 	    	return false;	
 		}
+	}
+
+	@Override
+	public void reactOnGameResult(double result, double wealth) {
+		// do nothing for that simple Implementation
+		
+	}
+	
+	public String toString() {
+		return "Simple";
 	}
 
 }

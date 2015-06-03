@@ -33,6 +33,9 @@ public class PersonAgent implements Steppable
     private double uncertaintySigma;
     private Fairness fairness;
 
+	static private double winningInitiator;
+	static private double winningPartner;
+
 	private GameDecisionService gameDecisionService;
     private GameCreationService gameCreationService;
     
@@ -101,15 +104,15 @@ public class PersonAgent implements Steppable
 		
 		public PersonAgent build() {
 			PersonAgent personAgent = new PersonAgent(this);
-			System.out.println("create #" + personAgent.getNumber() + 
-        			"  wealth: " + personAgent.getWealth() +
-        			"  willnessToInitiate: " + personAgent.getWillnessToInitiateGame() +
-        			"  uncertaintyMi: " + personAgent.getUncertaintyMi() +
-        			"  uncertaintySigma: " + personAgent.getUncertaintySigma() +
-        			"  fairness: " + personAgent.getFairness() +
-        			"  gameDecisionService: " + "COMMENTTOWRITE" +
-        			"  gameCreationService: " + "COMMENTTOWRITE"
-        			);
+//			System.out.println("create #" + personAgent.getNumber() + 
+//        			"  wealth: " + personAgent.getWealth() +
+//        			"  willnessToInitiate: " + personAgent.getWillnessToInitiateGame() +
+//        			"  uncertaintyMi: " + personAgent.getUncertaintyMi() +
+//        			"  uncertaintySigma: " + personAgent.getUncertaintySigma() +
+//        			"  fairness: " + personAgent.getFairness() +
+//        			"  gameDecisionService: " + "COMMENTTOWRITE" +
+//        			"  gameCreationService: " + "COMMENTTOWRITE"
+//        			);
 			return new PersonAgent(this);
 		}  
     }
@@ -125,8 +128,8 @@ public class PersonAgent implements Steppable
     	this.gameDecisionService = builder.gameDecisionService;
     	this.gameCreationService = builder.gameCreationService;
     	
-    	trustTable = new double[100];
-    	for(int i = 0; i < 100; i++) {
+    	trustTable = new double[900];
+    	for(int i = 0; i < 900; i++) {
     		trustTable[i]=0.01;
     	}
     }
@@ -151,46 +154,42 @@ public class PersonAgent implements Steppable
             int personAgentIndex = getRandomPersonNumber(simulationEngine);
         	if(gameDecisionService.ifPlayGame(this, game, trustTable[personAgentIndex])) {
         		if(simulationEngine.getPersonAgent(personAgentIndex).playGameWithMe(number, opponentsGame)) {
-        			playGame(game);
+        			winningInitiator = playGame(game);
         			//TODO przesun¹æ jakoœ do playGame
         			trustTable[personAgentIndex] = Tools.round(trustTable[personAgentIndex]+lastWinning);
-        			System.out.println("   Agent #" + number + " has played with agent #" + personAgentIndex + 
-        					" \n      Game1. mi=" + game.getMi() + " sigma=" + game.getSigma() + 
-        					" \n         " + game.toStringLastUncertains() + 
-        					" \n      Game2. mi=" + opponentsGame.getMi() + " sigma=" + opponentsGame.getSigma() + 
-        					" \n         " + opponentsGame.toStringLastUncertains());
+//        			System.out.println("   " + this + " has played with ; " + simulationEngine.getPersonAgent(personAgentIndex) + 
+//        					" \n      Game1. " + game + " winnings=" + winningInitiator + ";" +
+//        					" \n      Game2. " + opponentsGame + " winnings=" + winningPartner + ";");
             		
         		}
         		else {
-//                	System.out.println("   Agent #" + number + " won't play with agent #" + personAgentIndex + 
-//                			" in game. mi=" + game.getMi() + " sigma=" + game.getSigma() +
-//        					" \n         uMi=" + game.getUncertainMi(uncertaintyMi) + 
-//        					" uSigma=" + game.getUncertainSigma(uncertaintySigma));
+//        			System.out.println("   " + this + " has tried to play with ; " + simulationEngine.getPersonAgent(personAgentIndex) + 
+//        					" \n      Game1. " + game +
+//        					" \n      Game2. " + opponentsGame);
         		}
         	}
         	else {
-//            	System.out.println("   Agent #" + number + " doesn't like the game." + 
-//            			" mi=" + game.getMi() + " sigma=" + game.getSigma() +
-//    					" \n         uMi=" + game.getUncertainMi(uncertaintyMi) + 
-//    					" uSigma=" + game.getUncertainSigma(uncertaintySigma));
+//        		System.out.println("   " + this + " hasn't tried to play with ; " + simulationEngine.getPersonAgent(personAgentIndex) + 
+//    					" \n      Game1. " + game +
+//    					" \n      Game2. " + opponentsGame);
         	}
         }
         else {
-//        	System.out.println("   Agent #" + number + " won't initiate the game.");
+//        	System.out.println("   " + this + " doesn't like to play");
         }
         
     }
        
-    public void playGame(Game game) {
+    public double playGame(Game game) {
     	double value = game.play();
     	changeWealth(value);
     	lastWinning = value;
-    	System.out.println(" Agent #" + number + " has got winning=" + value);
+    	return value;
     }
     
     public boolean playGameWithMe(int gameInitiatorNumber, Game game) {
     	if(gameDecisionService.ifPlayGame(this, game, trustTable[gameInitiatorNumber])) {
-    		playGame(game);
+    		winningPartner = playGame(game);
     		return true;
     	}
     	else return false;
@@ -256,5 +255,11 @@ public class PersonAgent implements Steppable
 
 	public void setFairness(Fairness fairness) {
 		this.fairness = fairness;
+	}
+	
+	public String toString() {
+		
+		return "Agent number=" + this.number + "; willnessToInitiate=" + this.willnessToInitiateGame + "; uncertaintyMi=" + this.uncertaintyMi + "; uncertaintySigma=" + this.uncertaintySigma 
+				+ "; fairness=" + fairness + "; gameCreationService=" + this.gameCreationService + "; gameDecisionService=" + this.gameDecisionService + ";";
 	}
 }

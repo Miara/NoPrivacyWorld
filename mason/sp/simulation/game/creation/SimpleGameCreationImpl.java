@@ -16,4 +16,8 @@ public class SimpleGameCreationImpl implements GameCreationService {
 		return new GamePair(game1, game2);
 	}
 	
+	public String toString() {
+		return "Simple";
+	}
+	
 }

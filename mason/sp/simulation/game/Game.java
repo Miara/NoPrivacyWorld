@@ -133,8 +133,10 @@ public class Game {
 		lastUncertainSigmaPair = new DoublePair(x, y);
 		return new DoublePair(x, y);
 	}
-	
+	public String toString() {
+		return "Mi=" + mi + "; Sigma=" + sigma + "; " + toStringLastUncertains();
+	}
 	public String toStringLastUncertains() {
-		return " uMi=" + lastUncertainMiPair + " uSigma=" + lastUncertainSigmaPair;
+		return "uMi=" + lastUncertainMiPair + "; uSigma=" + lastUncertainSigmaPair + ";";
 	}
 }
