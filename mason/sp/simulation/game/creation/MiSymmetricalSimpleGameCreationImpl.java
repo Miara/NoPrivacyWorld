@@ -15,5 +15,9 @@ public class MiSymmetricalSimpleGameCreationImpl implements GameCreationService{
 		game2.setGameMiSymmetrical(game1);
 		return new GamePair(game1, game2);
 	}
+	
+	public String toString() {
+		return "MiSymmetricalSimpleGameCreationImpl";
+	}
 
 }

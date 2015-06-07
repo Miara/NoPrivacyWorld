@@ -9,18 +9,18 @@ public class SimpleDecisionByMiImpl implements GameDecisionService{
      * simple check if agent want to play - he checks if mean of left constraint and right constraint is greater than 0.0.
      */
 	@Override
-	public boolean ifPlayGame(PersonAgent personAgent, Game game, double trust) {
-		if(trust<=0.0) {
+	public boolean ifPlayGame(PersonAgent personAgent, Game game/*, double trust*/) {
+		/*if(trust<=0.0) {
 			return false;
 		}
-		else {
+		else {*/
 			DoublePair uMi = game.getUncertainMi(personAgent.getUncertaintyMi());
 	    	double mean = (uMi.getR()+uMi.getL())/2;
 	    	
 	    	if( mean >= 0.0)
 	    		return true;
 	    	return false;	
-		}
+		//}
 	}
 
 	@Override
@@ -30,7 +30,7 @@ public class SimpleDecisionByMiImpl implements GameDecisionService{
 	}
 	
 	public String toString() {
-		return "Simple";
+		return "SimpleDecisionByMiImpl,";
 	}
 
 }

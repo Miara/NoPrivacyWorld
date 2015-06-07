@@ -17,7 +17,7 @@ public class SimpleGameCreationImpl implements GameCreationService {
 	}
 	
 	public String toString() {
-		return "Simple";
+		return "SimpleGameCreationImpl";
 	}
 	
 }

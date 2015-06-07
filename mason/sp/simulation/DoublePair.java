@@ -2,13 +2,13 @@ package sp.simulation;
 
 public class DoublePair {
 
-	private double l;
-	private double r;
+	private Double l;
+	private Double r;
 	
 //	public DoublePair() {
 //	}
 	
-	public DoublePair(double l, double r) {
+	public DoublePair(Double l, Double r) {
 		this.l = l;
 		this.r = r;
 	}
@@ -18,19 +18,19 @@ public class DoublePair {
 		return "DoublePair [l=" + l + ", r=" + r + "]";
 	}
 
-	public double getL() {
+	public Double getL() {
 		return l;
 	}
 	
-	public void setL(double l) {
+	public void setL(Double l) {
 		this.l = l;
 	}
 	
-	public double getR() {
+	public Double getR() {
 		return r;
 	}
 	
-	public void setR(double r) {
+	public void setR(Double r) {
 		this.r = r;
 	}
 	

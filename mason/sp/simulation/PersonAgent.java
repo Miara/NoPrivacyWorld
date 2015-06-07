@@ -6,7 +6,9 @@
 
 package sp.simulation;
 
-import java.util.logging.Logger;
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
 
 import ec.util.MersenneTwisterFast;
 import sim.engine.*;
@@ -21,14 +23,13 @@ import sp.simulation.game.decision.SimpleDecisionByMiImpl;
 public class PersonAgent implements Steppable
 {
     private static final long serialVersionUID = 1;
-    static final Logger logger = Logger.getAnonymousLogger();
     
     // the width and height will change later
 	private MersenneTwisterFast random = new MersenneTwisterFast();
 
     private int number;
     private double wealth;
-    private double willnessToInitiateGame;//[0,1]
+    private double willingnessToInitiateGame;//[0,1]
     private double uncertaintyMi;
     private double uncertaintySigma;
     private Fairness fairness;
@@ -37,9 +38,11 @@ public class PersonAgent implements Steppable
 	static private double winningPartner;
 
 	private GameDecisionService gameDecisionService;
-    private GameCreationService gameCreationService;
+	private GameCreationService gameCreationService;
     
-    private double[] trustTable;
+    private static PrintWriter writer;
+    private int step = 0;
+    //private double[] trustTable;
 
     private double lastWinning;
 	/**	in builder pattern we get MersenneTwisterFast random because as there is stated in documentation:
@@ -52,18 +55,19 @@ public class PersonAgent implements Steppable
 	 */
     public static class Builder {
     	
+    	private static int lastNumber = 0;
     	private final int number;
     	private final MersenneTwisterFast random;
         private double wealth = 0.0;
-        private double willnessToInitiateGame = 0.5; //[0,1]
-        private double uncertaintyMi = 0.0;
-        private double uncertaintySigma = 0.0;
+        private double willingnessToInitiateGame = 0.5; //[0,1]
+        private double uncertaintyMi = 0.6;
+        private double uncertaintySigma = 1.2;
         private Fairness fairness = Fairness.FAIR;
         private GameDecisionService gameDecisionService = new SimpleDecisionByMiImpl();
         private GameCreationService gameCreationService = new SimpleGameCreationImpl();
         
-		public Builder(int number, MersenneTwisterFast random) {
-			this.number = number;
+		public Builder(MersenneTwisterFast random) {
+			this.number = this.lastNumber++;
 			this.random = random;
 		}
 		
@@ -72,8 +76,8 @@ public class PersonAgent implements Steppable
 			return this;
 		}
 		
-		public Builder willnessToInitiateGame(double willnessToInitiateGame) {
-			this.willnessToInitiateGame = willnessToInitiateGame;
+		public Builder willingnessToInitiateGame(double willingnessToInitiateGame) {
+			this.willingnessToInitiateGame = willingnessToInitiateGame;
 			return this;
 		}
 		
@@ -104,79 +108,75 @@ public class PersonAgent implements Steppable
 		
 		public PersonAgent build() {
 			PersonAgent personAgent = new PersonAgent(this);
-//			System.out.println("create #" + personAgent.getNumber() + 
-//        			"  wealth: " + personAgent.getWealth() +
-//        			"  willnessToInitiate: " + personAgent.getWillnessToInitiateGame() +
-//        			"  uncertaintyMi: " + personAgent.getUncertaintyMi() +
-//        			"  uncertaintySigma: " + personAgent.getUncertaintySigma() +
-//        			"  fairness: " + personAgent.getFairness() +
-//        			"  gameDecisionService: " + "COMMENTTOWRITE" +
-//        			"  gameCreationService: " + "COMMENTTOWRITE"
-//        			);
 			return new PersonAgent(this);
 		}  
+		
+		public static void resetLastNumber() {
+			lastNumber = 0;
+		}
     }
     
     private PersonAgent(Builder builder) {
     	this.number = builder.number;
     	this.random = builder.random;
     	this.wealth = builder.wealth;
-    	this.willnessToInitiateGame = builder.willnessToInitiateGame;
+    	this.willingnessToInitiateGame = builder.willingnessToInitiateGame;
     	this.uncertaintyMi = builder.uncertaintyMi;
     	this.uncertaintySigma = builder.uncertaintySigma;
     	this.fairness = builder.fairness;
     	this.gameDecisionService = builder.gameDecisionService;
     	this.gameCreationService = builder.gameCreationService;
     	
-    	trustTable = new double[900];
-    	for(int i = 0; i < 900; i++) {
+    	/*trustTable = new double[1000];
+    	for(int i = 0; i < 1000; i++) {
     		trustTable[i]=0.01;
-    	}
+    	}*/
     }
     
     /**
-     * try to initiate the game - sometimes agents doesn't want to, willnessToInitateGame decides how often he would initiate
+     * try to initiate the game - sometimes agents doesn't want to, willingnessToInitateGame decides how often he would initiate
      * then check if agent wants to play - some games have to small chances to win
      * then propose game to random other agent and he checks if want to play that game
      * then play
      */
     public void step(SimState state){
+    	step++;
         SimulationEngine simulationEngine = (SimulationEngine)state;
         
-        for(double i : trustTable) {
+        /*for(double i : trustTable) {
     		i+=0.1;
-    	}
-        if(ifInitiateGame()) {
-        	GamePair gamePair = gameCreationService.createGame(this, random);
-        	Game game = gamePair.getL();
-        	Game opponentsGame = gamePair.getR();
+    	}*/
+    	GamePair gamePair = gameCreationService.createGame(this, random);
+    	Game game = gamePair.getL();
+    	Game opponentsGame = gamePair.getR();
 
-            int personAgentIndex = getRandomPersonNumber(simulationEngine);
-        	if(gameDecisionService.ifPlayGame(this, game, trustTable[personAgentIndex])) {
-        		if(simulationEngine.getPersonAgent(personAgentIndex).playGameWithMe(number, opponentsGame)) {
+        int personAgentIndex = getRandomPersonNumber(simulationEngine);
+        String type = "";
+        
+        winningInitiator = winningPartner = 0.0;
+        
+        if(ifInitiateGame()) {
+        	if(gameDecisionService.ifPlayGame(this, game/*, trustTable[personAgentIndex]*/)) {
+        		if(simulationEngine.getPersonAgent(personAgentIndex)
+        				.playGameWithMe(number, opponentsGame)) {
         			winningInitiator = playGame(game);
-        			//TODO przesun¹æ jakoœ do playGame
-        			trustTable[personAgentIndex] = Tools.round(trustTable[personAgentIndex]+lastWinning);
-//        			System.out.println("   " + this + " has played with ; " + simulationEngine.getPersonAgent(personAgentIndex) + 
-//        					" \n      Game1. " + game + " winnings=" + winningInitiator + ";" +
-//        					" \n      Game2. " + opponentsGame + " winnings=" + winningPartner + ";");
-            		
+                	type = "PLAYED";
+        			///trustTable[personAgentIndex] = Tools.round(trustTable[personAgentIndex]+lastWinning);
         		}
         		else {
-//        			System.out.println("   " + this + " has tried to play with ; " + simulationEngine.getPersonAgent(personAgentIndex) + 
-//        					" \n      Game1. " + game +
-//        					" \n      Game2. " + opponentsGame);
+                	type = "NOT_PLAYED";
         		}
         	}
         	else {
-//        		System.out.println("   " + this + " hasn't tried to play with ; " + simulationEngine.getPersonAgent(personAgentIndex) + 
-//    					" \n      Game1. " + game +
-//    					" \n      Game2. " + opponentsGame);
+            	type = "NOT_CHOSEN";
         	}
         }
         else {
-//        	System.out.println("   " + this + " doesn't like to play");
+        	type = "NOT_INITIATED";
         }
+        
+        writer.println(step + "," + type + "," + number + "," + winningInitiator + "," + game.toLogString() + "," + 
+        		personAgentIndex + "," + winningPartner + "," + opponentsGame.toLogString());
         
     }
        
@@ -188,7 +188,7 @@ public class PersonAgent implements Steppable
     }
     
     public boolean playGameWithMe(int gameInitiatorNumber, Game game) {
-    	if(gameDecisionService.ifPlayGame(this, game, trustTable[gameInitiatorNumber])) {
+    	if(gameDecisionService.ifPlayGame(this, game/*, trustTable[gameInitiatorNumber]*/)) {
     		winningPartner = playGame(game);
     		return true;
     	}
@@ -196,14 +196,14 @@ public class PersonAgent implements Steppable
     }
     private boolean ifInitiateGame() {
     	double x = random.nextDouble();
-        return (x < willnessToInitiateGame);
+        return (x < willingnessToInitiateGame);
     }
     
     private int getRandomPersonNumber(SimulationEngine se){
     	
     	int randomPersonNumber;
     	do{
-    		randomPersonNumber = random.nextInt(se.getPersonsLimit());
+    		randomPersonNumber = se.getRandomPersonAgentId();
     	}while(randomPersonNumber == number);
     	return randomPersonNumber;
     }
@@ -225,12 +225,12 @@ public class PersonAgent implements Steppable
 		return wealth;
 	}
 	
-	public double getWillnessToInitiateGame() {
-		return willnessToInitiateGame;
+	public double getWillingnessToInitiateGame() {
+		return willingnessToInitiateGame;
 	}
 
-	public void setWillnessToInitiateGame(double willnessToInitiateGame) {
-		this.willnessToInitiateGame = willnessToInitiateGame;
+	public void setWillingnessToInitiateGame(double willingnessToInitiateGame) {
+		this.willingnessToInitiateGame = willingnessToInitiateGame;
 	}
 	
 	public double getUncertaintyMi() {
@@ -256,10 +256,45 @@ public class PersonAgent implements Steppable
 	public void setFairness(Fairness fairness) {
 		this.fairness = fairness;
 	}
+
+    public GameDecisionService getGameDecisionService() {
+		return gameDecisionService;
+	}
+
+	public void setGameDecisionService(GameDecisionService gameDecisionService) {
+		this.gameDecisionService = gameDecisionService;
+	}
+
+	public GameCreationService getGameCreationService() {
+		return gameCreationService;
+	}
+
+	public void setGameCreationService(GameCreationService gameCreationService) {
+		this.gameCreationService = gameCreationService;
+	}
 	
 	public String toString() {
 		
-		return "Agent number=" + this.number + "; willnessToInitiate=" + this.willnessToInitiateGame + "; uncertaintyMi=" + this.uncertaintyMi + "; uncertaintySigma=" + this.uncertaintySigma 
+		return "Agent number=" + this.number + "; willingnessToInitiate=" + this.willingnessToInitiateGame + "; uncertaintyMi=" + this.uncertaintyMi + "; uncertaintySigma=" + this.uncertaintySigma 
 				+ "; fairness=" + fairness + "; gameCreationService=" + this.gameCreationService + "; gameDecisionService=" + this.gameDecisionService + ";";
 	}
+	
+	public String toLogString() {
+		return this.number + "," + willingnessToInitiateGame + "," + uncertaintyMi + "," + uncertaintySigma 
+				+ "," + gameCreationService + "," + gameDecisionService;
+	}
+	
+	public static void setPrinter(String fileName) {
+		try {
+			writer = new PrintWriter(fileName, "UTF-8");
+		} catch (FileNotFoundException | UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public static void closePrinter() {
+		writer.close();
+	}
+	
+	
 }

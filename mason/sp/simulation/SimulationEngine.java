@@ -1,53 +1,125 @@
-/*
-  Copyright 2006 by Sean Luke and George Mason University
-  Licensed under the Academic Free License version 3.0
-  See the file "LICENSE" for more information
-*/
-
 package sp.simulation;
 
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import sim.engine.*;
 import sim.field.grid.*;
+import sp.simulation.game.creation.GameCreationService;
+import sp.simulation.game.creation.IdenticalSimpleGameCreationImpl;
+import sp.simulation.game.creation.MiSymmetricalSimpleGameCreationImpl;
 import sp.simulation.game.creation.SimpleGameCreationImpl;
 import sp.simulation.game.decision.ChangingDecisionByMiAndSigmaImpl;
 import sp.simulation.game.decision.ChangingDecisionByMiImpl;
+import sp.simulation.game.decision.GameDecisionService;
 import sp.simulation.game.decision.SimpleDecisionByMiImpl;
 
 public class SimulationEngine extends SimState
 {
 	
-    private int personsLimit = 882; //number of personAgents
-    private int stepsLimit = 200; // number of steps, each step consists of each agent trying to initiate game with random agent (not himself)
-
-    private ArrayList<PersonAgent> personAgentArray;
+    private int personsLimit = 1000; //number of personAgents
+    private int stepsLimit = 3; // number of steps, each step consists of each agent trying to initiate game with random agent (not himself)
+    private static int worldsNumber = 3;
+    private static int worldNumber;
+    
+    private Map<Integer, PersonAgent> personAgentMap;
     private ArrayList<PersonAgentGroup> personAgentGroupArray;
+    private PersonAgentMultiGroup personAgentMultiGroup;
+    private ArrayList<RawAgent> rawAgentList;
+    private Object[] agentIdValues;
+    
+    private PrintWriter resultWriter;
+    private PrintWriter agentsWriter;
     
     private static final long serialVersionUID = 1;
-
-    private double[] uMiThirdClassArr = {0.8, 0.6, 0.4, 0.2, 0.0};
-    private double[] uSigmaThirdClassArr = {1.2, 0.9, 0.6, 0.3, 0.0};
-    private double[] uMiSecondClassArr = {0.4, 0.3, 0.2, 0.1, 0.0};
-    private double[] uSigmaSecondClassArr = {0.6, 0.45, 0.3, 0.15, 0.0};
-    private double[] uMiFirstClassArr = {0.0, 0.0, 0.0, 0.0, 0.0};
-    private double[] uSigmaFirstClassArr = {0.0, 0.0, 0.0, 0.0, 0.0};
     
-    private double uMiThirdClass;
-    private double uSigmaThirdClass;
-    private double uMiSecondClass;
-    private double uSigmaSecondClass;
-    private double uMiFirstClass;
-    private double uSigmaFirstClass;
-    private int cntInGroupThirdClass = 30;
-    private int cntInGroupSecondClass = 10;
-    private int cntInGroupFirstClass = 2;
+    private int rawAgentNumber = 0;
     
+    public static void main(String[] args){
+    	
+    	if(args.length > 0) {
+    	    worldsNumber = Integer.parseInt(args[0])-1;    		
+    	}
+    	
+        SimulationEngine simulationEngine = new SimulationEngine(System.currentTimeMillis());
+        simulationEngine.runSimulation();
+        System.exit(0);
+    }
     
     public SimulationEngine(long seed) {
         super(seed);
     }
+
+    private void runSimulation() {
+    	
+    	loadCSV();
+    	try {
+			resultWriter = new PrintWriter("output/results.csv", "UTF-8");
+		} catch (FileNotFoundException | UnsupportedEncodingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    	
+    	for(int i = worldsNumber; i >= 0 ; i--) {
+
+	    	start(i);
+	    	start();
+	    	
+	        while(schedule.getSteps() < stepsLimit){
+	            if (!schedule.step(this))
+	                break;
+	        }
+	        finish();
+    	}
+    	resultWriter.close();
+    }
+    
+    private void loadCSV() {
+    	ArrayList<List<String>> values = Tools.readCSV();
+    	rawAgentList = new ArrayList<RawAgent>();
+    	
+		for(List<String> as : values) {
+			rawAgentList.add(new RawAgent(as));
+		}
+    }
+    
+    public void start(){
+    	
+        super.start();
+    	personAgentMultiGroup.clear();
+    	PersonAgentMultiGroup.setWorldNumber(worldNumber);
+        seedPersonAgentArray();
+    	agentIdValues = personAgentMap.keySet().toArray();
+    }
+    /**
+     * 
+     * @param i
+     * set writers for logs different between each iterations 
+     */
+    public void start(int i) {
+    	worldNumber = i;
+		try {
+			agentsWriter = new PrintWriter("output/agents-" + i + ".csv", "UTF-8");
+		} catch (FileNotFoundException | UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+    	PersonAgent.setPrinter("output/log-" + i + ".csv");
+    }
+
+    public void finish(){
+    	
+        super.finish();
+        resultWriter.print(PersonAgentMultiGroup.getResults());
+    	agentsWriter.close();
+    	PersonAgent.closePrinter();
+    }
+
     
     /**
      * randomly seed all the people and add them to schedule
@@ -55,218 +127,14 @@ public class SimulationEngine extends SimState
      */
     void seedPersonAgentArray() {
     	
-    	PersonAgent p;
-    	personAgentArray = new ArrayList<PersonAgent>();
-    	personAgentGroupArray = new ArrayList<PersonAgentGroup>();
-    	int actualNumber = 0;
+    	personAgentMap = new HashMap<Integer, PersonAgent>();
+    	PersonAgent.Builder.resetLastNumber();//to start agent's id always from 1
     	
-    	//3 class of people
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-				.gameDecisionService(new SimpleDecisionByMiImpl()).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.0)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(-0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.5)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.4)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.6)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-				.gameDecisionService(new SimpleDecisionByMiImpl()).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.0)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(-0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.5)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.4)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.6)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-				.gameDecisionService(new SimpleDecisionByMiImpl()).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.0)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(-0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.5)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.4)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiThirdClass).uncertaintySigma(uSigmaThirdClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.6)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupThirdClass, actualNumber);
-		
-		//2 class of people
-		p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-				.gameDecisionService(new SimpleDecisionByMiImpl()).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.0)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(-0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.5)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.4)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.6)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-				.gameDecisionService(new SimpleDecisionByMiImpl()).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.0)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(-0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.5)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.4)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.6)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-				.gameDecisionService(new SimpleDecisionByMiImpl()).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.0)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(-0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.5)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.4)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiSecondClass).uncertaintySigma(uSigmaSecondClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.6)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupSecondClass, actualNumber);
-		
-		//1 class agents
-		p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-				.gameDecisionService(new SimpleDecisionByMiImpl()).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.0)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(-0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.5)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.4)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.05).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.6)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-				.gameDecisionService(new SimpleDecisionByMiImpl()).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.0)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(-0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.5)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.4)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.3).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.6)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-				.gameDecisionService(new SimpleDecisionByMiImpl()).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.0)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(-0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-				.gameDecisionService(new ChangingDecisionByMiImpl(0.5)).build();
-    	actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.5)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.4)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-    	p = new PersonAgent.Builder(actualNumber, random).willnessToInitiateGame(0.7).uncertaintyMi(uMiFirstClass).uncertaintySigma(uSigmaFirstClass)
-    			.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(0.6)).build();
-		actualNumber = multiplyPeopleAgent(p, cntInGroupFirstClass, actualNumber);
-		
-//    	for(int number=actualNumber; number<getPersonsLimit(); number++){
-//    		p = new PersonAgent.Builder(number, random).willnessToInitiateGame(0.5).uncertaintyMi(0.0).fairness(Fairness.UNFAIR).build();
-//    		personAgentArray.add(p);
-//            schedule.scheduleRepeating(p);
-//    	}
+		for(RawAgent ra : rawAgentList) {
+			multiplyPeopleAgent(ra.getPersonAgent(), ra.getMultiply(), ra.getGroupId());
+		}
     }
+    
     /**
      * 
      * @param patternPerson
@@ -276,89 +144,33 @@ public class SimulationEngine extends SimState
      * 
      * multiply one agent and build group to aggregate wealth for that group
      */
-    int multiplyPeopleAgent(PersonAgent patternPerson, int times, int actualNumber) {
+    void multiplyPeopleAgent(PersonAgent patternPerson, int times, Integer groupId) {
     	
     	double wealth = patternPerson.getWealth();
-        double willnessToInitiateGame = patternPerson.getWillnessToInitiateGame();
-        double uncertaintyMi = patternPerson.getUncertaintyMi();
-        double uncertaintySigma = patternPerson.getUncertaintySigma();
+        double willingnessToInitiateGame = patternPerson.getWillingnessToInitiateGame();
+        double uncertaintyMi = Tools.round(patternPerson.getUncertaintyMi()*worldNumber/worldsNumber);
+        double uncertaintySigma = Tools.round(patternPerson.getUncertaintySigma()*worldNumber/worldsNumber);
+        GameDecisionService gds = patternPerson.getGameDecisionService();
+        GameCreationService gcs = patternPerson.getGameCreationService();
         PersonAgent p;
         
-        personAgentGroupArray.add(new PersonAgentGroup(patternPerson, times, actualNumber, this));
-        
-    	for(int number=actualNumber; (number<actualNumber+times) && (number<getPersonsLimit()); number++) {
-    		p = new PersonAgent.Builder(number, random).wealth(wealth).willnessToInitiateGame(willnessToInitiateGame)
+    	for(int number=0; (number<times); number++) {
+    		p = new PersonAgent.Builder(random).wealth(wealth).willingnessToInitiateGame(willingnessToInitiateGame)
     				.uncertaintyMi(uncertaintyMi).uncertaintySigma(uncertaintySigma)
+    				.gameCreationService(gcs).gameDecisionService(gds)
     				.build();
-    		personAgentArray.add(p);
+    		personAgentMap.put(p.getNumber(), p);
+    		if(groupId != null)
+    			PersonAgentMultiGroup.getPersonAgentMultiGroup(groupId,this).addAgent(p.getNumber());
             schedule.scheduleRepeating(p);
-    	}
-    	return actualNumber + times;
-    }
-    
-    public void start(){
-    	
-        super.start();
-        seedPersonAgentArray();
-        System.out.println("START SIMULATION");
-    }
-
-    public void finish(){
-    	
-        super.finish();
-        System.out.println("STOP SIMULATION SCORE");
-//        for(PersonAgent personAgent : personAgentArray) {
-//        	System.out.println("#" + personAgent.getNumber() + 
-//        			"  wealth: " + personAgent.getWealth() +
-//        			"  willnessToInitiate: " + personAgent.getWillnessToInitiateGame() +
-//        			"  uncertaintyMi: " + personAgent.getUncertaintyMi() +
-//        			"  uncertaintySigma: " + personAgent.getUncertaintySigma() +
-//        			"  fairness: " + personAgent.getFairness()
-//        			);
-//        }
-        for(PersonAgentGroup pag : personAgentGroupArray) {
-        	System.out.println(pag);
-        }
-    }
-    
-    public static void main(String[] args){
-    	
-        SimulationEngine simulationEngine = new SimulationEngine(System.currentTimeMillis());
-        simulationEngine.runSimulation();
-        System.exit(0);
-    }
-
-    private void runSimulation() {
-    	
-    	for(int i = 0; i < 5; i++) {
-
-    	    uMiFirstClass = uMiFirstClassArr[i];
-    	    uSigmaFirstClass = uSigmaFirstClassArr[i];
-    	    uMiSecondClass = uMiSecondClassArr[i];
-    	    uSigmaSecondClass = uSigmaSecondClassArr[i];
-    	    uMiThirdClass = uMiThirdClassArr[i];
-    	    uSigmaThirdClass = uSigmaThirdClassArr[i];
-    	    
-	    	start();
-	        while(schedule.getSteps() < stepsLimit){
-	//            System.out.println("Step: " + schedule.getSteps() + " Time: " + schedule.getTime() + " StepsLimit: " + stepsLimit);
-	            if (!schedule.step(this))
-	                break;
-	//        	 waitSeconds(1);
-	        }
-	        finish();
+            agentsWriter.println(p.toLogString());
     	}
     }
     
-    private void waitSeconds(int x) {
-    	
-   	 	try {
-			Thread.sleep(1000 *x);
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+    public int getRandomPersonAgentId () {
+    	return (int) agentIdValues[random.nextInt(agentIdValues.length)];
     }
+    
 	public int getStepsLimit() {
 		return stepsLimit;
 	}
@@ -376,12 +188,109 @@ public class SimulationEngine extends SimState
 	}    
 	
 	public PersonAgent getPersonAgent(int index) {
-		return personAgentArray.get(index);
+		return personAgentMap.get(index);
 	}
 	
 	public void setPersonAgent(int index, PersonAgent personAgent) {
-		personAgentArray.set(index, personAgent);
+		personAgentMap.put(index, personAgent);
 	}
+    
+    private class RawAgent {
+    	private int multiply;
+    	private PersonAgent personAgent;
+    	private Integer groupId;
+    	
+    	public RawAgent(List<String> as) {
+    		PersonAgent.Builder builder = new PersonAgent.Builder(random);
+    		int i = 0;
+    		double parameter = 0.5;
+    		rawAgentNumber++;
+    		if(as.size() == 8) {
+	    		if(as.get(i).trim().length()>0)
+	    			groupId = Integer.parseInt(as.get(i).trim());
+	    		else
+	    			groupId = null;
+	    		i++; //1
+	    		if(as.get(i).trim().length()>0)
+	    			multiply = Integer.parseInt(as.get(i).trim());
+	    		else
+	    			multiply = 1;
+	    		i++; //2
+	    		if(as.get(i).trim().length()>1)
+	    			builder = builder.willingnessToInitiateGame(Double.parseDouble(as.get(i).trim()));
+	    		i++; //3
+	    		if(as.get(i).trim().length()>1)
+	    			builder = builder.uncertaintyMi(Double.parseDouble(as.get(i).trim()));
+	    		i++; //4
+	    		if(as.get(i).trim().length()>1)
+	    			builder = builder.uncertaintySigma(Double.parseDouble(as.get(i).trim()));
+	    		i++; //5
+	    		if(as.get(i).trim().length()>1)
+		    		switch(as.get(i).trim()){
+		    			case "SimpleGameCreationImpl" : {
+		    				builder = builder.gameCreationService(new SimpleGameCreationImpl());
+		    			} break;
+		    			case "IdenticalSimpleGameCreationImpl" : {
+		    				builder = builder.gameCreationService(new IdenticalSimpleGameCreationImpl());
+						} break;
+		    			case "MiSymmetricalSimpleGameCreationImpl" : {
+		    				builder = builder.gameCreationService(new MiSymmetricalSimpleGameCreationImpl());
+						} break;
+						default : {
+							System.out.println("[ERROR in input.csv at agent " + rawAgentNumber + "] Nieznana wartoœæ \"" + as.get(i).trim() + " dla agenta jako algorytm tworzenia gry");
+						}
+		    				
+		    		}
+	    		i++; //6
+	    		if(as.get(i).trim().length()>1)
+		    		switch(as.get(i).trim()){
+		    			case "SimpleDecisionByMiImpl" : {
+		    				builder = builder.gameDecisionService(new SimpleDecisionByMiImpl());
+		    			} break;
+		    			case "ChangingDecisionByMiImpl" : {
+		    	    		if(as.get(i+1).trim().length()>1)
+		    	    			parameter = Double.parseDouble(as.get(i+1).trim());
+		    	    		else
+								System.out.println("[ERROR in input.csv at agent " + rawAgentNumber + "] Brak wartoœci \"" + as.get(i+1).trim() + "\" dla agenta jako parametr algorytmu wyboru gry");
+		    	    			
+		    				builder = builder.gameDecisionService(new ChangingDecisionByMiImpl(parameter));
+						} break;
+		    			case "ChangingDecisionByMiAndSigmaImpl" : {
+		    	    		if(as.get(i+1).trim().length()>1)
+		    	    			parameter = Double.parseDouble(as.get(i+1).trim());
+		    	    		else
+								System.out.println("[ERROR in input.csv at agent " + rawAgentNumber + "] Brak wartoœci \"" + as.get(i+1).trim() + "\" dla agenta jako parametr algorytmu wyboru gry");
+		    	    			
+		    				builder = builder.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(parameter));
+						} break;
+						default : {
+							System.out.println("[ERROR in input.csv at agent " + rawAgentNumber + "] Nieznana wartoœæ \"" + as.get(i).trim() + "\" dla agenta jako algorytm wyboru gry");
+						}
+		    				
+		    		}
+	    		i+=2; //7
+	    		personAgent = builder.build();
+    		}
+    		else {
+				System.out.println("[ERROR in input.csv at agent " + rawAgentNumber + "] Niepoprawna liczba parametrów, " + as.size() + " zamiast 8. SprawdŸ w dokumentacji.");
+			}
+		}
+    	
+		public int getMultiply() {
+			return multiply;
+		}
+		public Integer getGroupId() {
+			return groupId;
+		}
+		public PersonAgent getPersonAgent() {
+			return personAgent;
+		}
+		
+		public String toString() {
+			return "multiply=" + multiply + ", groupId=" + groupId + ", " + personAgent;
+		}
+    	
+    }
 
   
 }

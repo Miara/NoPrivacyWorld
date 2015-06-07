@@ -2,6 +2,7 @@ package sp.simulation.game.decision;
 
 import sp.simulation.DoublePair;
 import sp.simulation.PersonAgent;
+import sp.simulation.Tools;
 import sp.simulation.game.Game;
 
 /**
@@ -22,22 +23,29 @@ public class ChangingDecisionByMiAndSigmaImpl implements GameDecisionService{
 	 */
 	public ChangingDecisionByMiAndSigmaImpl(double startParamValue) {
 		this.startParamValue = startParamValue;
+		this.param = startParamValue;
+	}
+	public static void main(String... args) {
+		ChangingDecisionByMiAndSigmaImpl x = new ChangingDecisionByMiAndSigmaImpl(0.0);
+		System.out.println(Tools.round(x.nonstandardCdf(0.0, -0.49, 1.02)));
 	}
 	@Override
-	public boolean ifPlayGame(PersonAgent personAgent, Game game, double trust) {
-		if(trust<=0.0) {
+	public boolean ifPlayGame(PersonAgent personAgent, Game game/*, double trust*/) {
+		/*if(trust<=0.0) {
 			return false;
 		}
-		else {
+		else {*/
 			DoublePair uMi = game.getUncertainMi(personAgent.getUncertaintyMi());
 			DoublePair uSigma = game.getUncertainSigma(personAgent.getUncertaintySigma());
-	    	double meanUMi = (uMi.getR()+uMi.getL())/2;
-	    	double meanUSigma = (uSigma.getR()+uSigma.getL())/2;
+	    	double meanUMi = Tools.round((uMi.getR()+uMi.getL())/2);
+	    	double meanUSigma = Tools.round((uSigma.getR()+uSigma.getL())/2);
+	    	
+	    	//System.out.println(meanUMi + " [" + game.getSigma() + " : " + uSigma.getL() + "," + uSigma.getR() + "," + meanUSigma + "] " + Tools.round(nonstandardCdf(0.0, meanUMi, meanUSigma)));
 	    	
 	    	if( nonstandardCdf(0.0, meanUMi, meanUSigma) >= param)
 	    		return true;
 	    	return false;	
-		}
+		//}
 	}
 
 	@Override
@@ -51,7 +59,7 @@ public class ChangingDecisionByMiAndSigmaImpl implements GameDecisionService{
 	}
 	
 	public String toString() {
-		return "changingWithMiAndSigma(param=" + startParamValue + ")";
+		return "ChangingDecisionByMiAndSigmaImpl," + startParamValue;
 	}
 	
 	/**

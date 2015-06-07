@@ -10,7 +10,8 @@ import sp.simulation.game.Game;
  */
 public class ChangingDecisionByMiImpl implements GameDecisionService{
 	
-	double startParamValue;
+	private double startParamValue;
+	private double param;
 	
 	/**
 	 * 
@@ -23,31 +24,31 @@ public class ChangingDecisionByMiImpl implements GameDecisionService{
 	}
 	
 	@Override
-	public boolean ifPlayGame(PersonAgent personAgent, Game game, double trust) {
-		if(trust<=0.0) {
+	public boolean ifPlayGame(PersonAgent personAgent, Game game/*, double trust*/) {
+		/*if(trust<=0.0) {
 			return false;
 		}
-		else {
+		else {*/
 			DoublePair uMi = game.getUncertainMi(personAgent.getUncertaintyMi());
 	    	double mean = (uMi.getR()+uMi.getL())/2;
 	    	
-	    	if( mean >= 0.0)
+	    	if( mean >= param)
 	    		return true;
 	    	return false;	
-		}
+		//}
 	}
 
 	@Override
 	public void reactOnGameResult(double result, double wealth) {
 		double param = startParamValue - wealth/100;
-		if(param < -1)
-			param = -1;
-		else if(param > 1)
-			param = 1;
+		if(param < -1.5)
+			param = -1.5;
+		else if(param > 1.5)
+			param = 1.5;
 	}
 	
 	public String toString() {
-		return "changingWithMi(param=" + startParamValue + ")";
+		return "ChangingDecisionByMiImpl," + startParamValue;
 	}
 
 }

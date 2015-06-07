@@ -9,7 +9,7 @@ public class Game {
 	
 	private double mi, sigma;
 	private MersenneTwisterFast random = new MersenneTwisterFast();
-	private DoublePair lastUncertainMiPair, lastUncertainSigmaPair;
+	private DoublePair lastUncertainMiPair = new DoublePair(null, null), lastUncertainSigmaPair = new DoublePair(null, null);
 	private Fairness fairness;
 
 	public Game(MersenneTwisterFast random, Fairness fairness) {
@@ -79,7 +79,7 @@ public class Game {
 		double x, y, uncertainty;
 		switch(fairness) {
 			case FAIR: {
-				uncertainty = (random.nextGaussian()-0.5)*uncertaintyMi*2;
+				uncertainty = (nextGaussianFromOneToOne())*uncertaintyMi;
 				x = mi - uncertaintyMi + uncertainty;
 				y = mi + uncertaintyMi + uncertainty;
 			}break;
@@ -126,11 +126,12 @@ public class Game {
 	 */
 	public DoublePair getUncertainSigma(double uncertaintySigma) {
 
-		double x, y;
-		double uncertainty = (random.nextGaussian()-0.5)*uncertaintySigma*2;
-		x = Tools.round(sigma - uncertaintySigma + uncertainty);
+		double x, y, g = nextGaussianFromOneToOne();
+		double uncertainty = (g)*uncertaintySigma;
+		x = Math.max(Tools.round(sigma - uncertaintySigma + uncertainty),0);
 		y = Tools.round(sigma + uncertaintySigma + uncertainty);
 		lastUncertainSigmaPair = new DoublePair(x, y);
+    	
 		return new DoublePair(x, y);
 	}
 	public String toString() {
@@ -138,5 +139,52 @@ public class Game {
 	}
 	public String toStringLastUncertains() {
 		return "uMi=" + lastUncertainMiPair + "; uSigma=" + lastUncertainSigmaPair + ";";
+	}
+	
+	public String toLogString() {
+		return mi + "," + lastUncertainMiPair.getL() + "," + lastUncertainMiPair.getR() + "," + 
+				sigma + "," + lastUncertainSigmaPair.getL() + "," + lastUncertainSigmaPair.getR();
+	}
+	
+	private Double nextGaussianFromOneToOne() {
+		Double result;
+		do {
+			result = random.nextGaussian();
+		} while (result<-1 || result>1);
+		return result;
+	}
+	
+	public String chances(double value) {
+		if(lastUncertainMiPair.getL() != null) {
+			double uMi = (lastUncertainMiPair.getL()+lastUncertainMiPair.getR())/2;
+			double uSigma;
+			if(lastUncertainSigmaPair.getL() != null)
+				uSigma = (lastUncertainSigmaPair.getL()+lastUncertainSigmaPair.getR())/2;
+			else 
+				uSigma = sigma;
+			return "" + nonstandardCdf(value, uMi, uSigma);
+		}
+		else return "";
+	}
+	
+	public double nonstandardCdf(double x, double mi, double sigma) {
+		return (1-cdf((x-mi)/sigma));
+	}
+
+	/**
+	 * 
+	 * Cumulative distribution function
+	 * http://en.wikipedia.org/wiki/Normal_distribution
+	 * returns probability of getting lower number than given in standard normal distribution
+	 */
+	public double cdf(double x) {
+		double sum = x;
+		double value = x;
+		for(int i = 1; i < 100; i++) {
+			value = value*x*x/(2*i+1);
+			sum = sum+value;
+		}
+		double result = 0.5 + (sum/Math.sqrt(2*Math.PI))*Math.exp(-(x*x)/2);
+		return result;
 	}
 }
