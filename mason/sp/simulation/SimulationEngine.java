@@ -24,7 +24,7 @@ public class SimulationEngine extends SimState
 {
 	
     private int personsLimit = 1000; //number of personAgents
-    private int stepsLimit = 3; // number of steps, each step consists of each agent trying to initiate game with random agent (not himself)
+    private static int stepsLimit = 50; // number of steps, each step consists of each agent trying to initiate game with random agent (not himself)
     private static int worldsNumber = 3;
     private static int worldNumber;
     
@@ -43,8 +43,12 @@ public class SimulationEngine extends SimState
     
     public static void main(String[] args){
     	
+    	if(args.length > 1) {
+    	    worldsNumber = Integer.parseInt(args[1])-1;    		
+    	}
+
     	if(args.length > 0) {
-    	    worldsNumber = Integer.parseInt(args[0])-1;    		
+    	    stepsLimit = Integer.parseInt(args[0]);    		
     	}
     	
         SimulationEngine simulationEngine = new SimulationEngine(System.currentTimeMillis());

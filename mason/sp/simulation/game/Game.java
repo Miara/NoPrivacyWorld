@@ -21,7 +21,7 @@ public class Game {
 	}
 	
 	public Game(MersenneTwisterFast random, Game game, Fairness fairness) {
-		this.setMi(-game.getMi());
+		this.setMi(game.getMi());
 		this.setSigma(game.getSigma());
 		this.fairness = fairness;
 	}
