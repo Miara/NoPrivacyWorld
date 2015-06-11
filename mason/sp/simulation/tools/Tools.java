@@ -1,4 +1,4 @@
-package sp.simulation;
+package sp.simulation.tools;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -7,7 +7,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Arrays;
-
+/**
+ * class with useful methods across the simulator
+ */
 public class Tools {
 	public static double round(double value, int places) {
 	    if (places < 0) throw new IllegalArgumentException();
@@ -17,7 +19,11 @@ public class Tools {
 	    long tmp = Math.round(value);
 	    return (double) tmp / factor;
 	}
-	
+	/**
+	 * 
+	 * @param value value to round
+	 * @return value rounded to second decimal place
+	 */
 	public static double round(double value) {
 	    return round(value, 2);
 	}

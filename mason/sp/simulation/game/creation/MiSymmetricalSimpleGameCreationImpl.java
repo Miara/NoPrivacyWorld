@@ -1,9 +1,9 @@
 package sp.simulation.game.creation;
 
-import sp.simulation.Fairness;
-import sp.simulation.PersonAgent;
+import sp.simulation.agent.PersonAgent;
 import sp.simulation.game.Game;
 import sp.simulation.game.GamePair;
+import sp.simulation.tools.Fairness;
 import ec.util.MersenneTwisterFast;
 
 public class MiSymmetricalSimpleGameCreationImpl implements GameCreationService{

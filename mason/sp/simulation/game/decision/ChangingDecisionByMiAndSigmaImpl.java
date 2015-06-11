@@ -1,9 +1,9 @@
 package sp.simulation.game.decision;
 
-import sp.simulation.DoublePair;
-import sp.simulation.PersonAgent;
-import sp.simulation.Tools;
+import sp.simulation.agent.PersonAgent;
 import sp.simulation.game.Game;
+import sp.simulation.tools.DoublePair;
+import sp.simulation.tools.Tools;
 
 /**
  * like in ChangingDecisionByMiImpl agent is changing his decision methods with changing parameter. 
@@ -16,10 +16,7 @@ public class ChangingDecisionByMiAndSigmaImpl implements GameDecisionService{
 	double startParamValue;
 	
 	/**
-	 * 
-	 * @param startParamValue
-	 * 
-	 * usually 0.5, if someone wants more safety then more than 0.5 when reckless people have less than 0.5
+	 * @param startParamValue It's usually 0.5, if someone wants more safety then more than 0.5 when reckless people have less than 0.5
 	 */
 	public ChangingDecisionByMiAndSigmaImpl(double startParamValue) {
 		this.startParamValue = startParamValue;
@@ -31,21 +28,19 @@ public class ChangingDecisionByMiAndSigmaImpl implements GameDecisionService{
 	}
 	@Override
 	public boolean ifPlayGame(PersonAgent personAgent, Game game/*, double trust*/) {
-		/*if(trust<=0.0) {
-			return false;
-		}
-		else {*/
+//		if(trust<=0.0) {
+//			return false;
+//		}
+//		else {
 			DoublePair uMi = game.getUncertainMi(personAgent.getUncertaintyMi());
 			DoublePair uSigma = game.getUncertainSigma(personAgent.getUncertaintySigma());
 	    	double meanUMi = Tools.round((uMi.getR()+uMi.getL())/2);
 	    	double meanUSigma = Tools.round((uSigma.getR()+uSigma.getL())/2);
 	    	
-	    	//System.out.println(meanUMi + " [" + game.getSigma() + " : " + uSigma.getL() + "," + uSigma.getR() + "," + meanUSigma + "] " + Tools.round(nonstandardCdf(0.0, meanUMi, meanUSigma)));
-	    	
 	    	if( nonstandardCdf(0.0, meanUMi, meanUSigma) >= param)
 	    		return true;
 	    	return false;	
-		//}
+//		}
 	}
 
 	@Override
@@ -63,10 +58,6 @@ public class ChangingDecisionByMiAndSigmaImpl implements GameDecisionService{
 	}
 	
 	/**
-	 * 
-	 * @param x
-	 * @param mi
-	 * @param sigma
 	 * @return probability of getting higher number than given x in non-standard normal distribution
 	 * 
 	 * firstly standardize distribution and getting value by cdf function
@@ -81,6 +72,7 @@ public class ChangingDecisionByMiAndSigmaImpl implements GameDecisionService{
 	 * http://en.wikipedia.org/wiki/Normal_distribution
 	 * returns probability of getting lower number than given in standard normal distribution
 	 */
+	
 	public double cdf(double x) {
 		double sum = x;
 		double value = x;

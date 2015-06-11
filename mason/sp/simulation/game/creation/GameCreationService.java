@@ -1,6 +1,6 @@
 package sp.simulation.game.creation;
 
-import sp.simulation.PersonAgent;
+import sp.simulation.agent.PersonAgent;
 import sp.simulation.game.GamePair;
 import ec.util.MersenneTwisterFast;
 

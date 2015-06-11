@@ -11,6 +11,8 @@ import java.util.Set;
 
 import sim.engine.*;
 import sim.field.grid.*;
+import sp.simulation.agent.PersonAgent;
+import sp.simulation.agent.PersonAgentMultiGroup;
 import sp.simulation.game.creation.GameCreationService;
 import sp.simulation.game.creation.IdenticalSimpleGameCreationImpl;
 import sp.simulation.game.creation.MiSymmetricalSimpleGameCreationImpl;
@@ -19,27 +21,24 @@ import sp.simulation.game.decision.ChangingDecisionByMiAndSigmaImpl;
 import sp.simulation.game.decision.ChangingDecisionByMiImpl;
 import sp.simulation.game.decision.GameDecisionService;
 import sp.simulation.game.decision.SimpleDecisionByMiImpl;
+import sp.simulation.tools.Tools;
 
 public class SimulationEngine extends SimState
 {
+    private static final long serialVersionUID = 1;
 	
-    private int personsLimit = 1000; //number of personAgents
     private static int stepsLimit = 50; // number of steps, each step consists of each agent trying to initiate game with random agent (not himself)
     private static int worldsNumber = 3;
     private static int worldNumber;
     
     private Map<Integer, PersonAgent> personAgentMap;
-    private ArrayList<PersonAgentGroup> personAgentGroupArray;
-    private PersonAgentMultiGroup personAgentMultiGroup;
+    private Object[] agentIdValues; //used to randomize one of agent id for partner-in-game creating purposes
+    
+    private int rawAgentNumber = 0;
     private ArrayList<RawAgent> rawAgentList;
-    private Object[] agentIdValues;
     
     private PrintWriter resultWriter;
     private PrintWriter agentsWriter;
-    
-    private static final long serialVersionUID = 1;
-    
-    private int rawAgentNumber = 0;
     
     public static void main(String[] args){
     	
@@ -62,49 +61,39 @@ public class SimulationEngine extends SimState
 
     private void runSimulation() {
     	
-    	loadCSV();
+    	loadCSVToRawAgentList();
+    	
     	try {
 			resultWriter = new PrintWriter("output/results.csv", "UTF-8");
 		} catch (FileNotFoundException | UnsupportedEncodingException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
     	
     	for(int i = worldsNumber; i >= 0 ; i--) {
 
-	    	start(i);
-	    	start();
+	    	start(i);	//also runs start()
 	    	
 	        while(schedule.getSteps() < stepsLimit){
 	            if (!schedule.step(this))
 	                break;
 	        }
+	        
 	        finish();
     	}
     	resultWriter.close();
     }
     
-    private void loadCSV() {
-    	ArrayList<List<String>> values = Tools.readCSV();
+    private void loadCSVToRawAgentList() {
+    	ArrayList<List<String>> listOfListsDescribingAgentsInCSV = Tools.readCSV();
     	rawAgentList = new ArrayList<RawAgent>();
     	
-		for(List<String> as : values) {
-			rawAgentList.add(new RawAgent(as));
+		for(List<String> ls : listOfListsDescribingAgentsInCSV) {
+			rawAgentList.add(new RawAgent(ls));
 		}
     }
-    
-    public void start(){
-    	
-        super.start();
-    	personAgentMultiGroup.clear();
-    	PersonAgentMultiGroup.setWorldNumber(worldNumber);
-        seedPersonAgentArray();
-    	agentIdValues = personAgentMap.keySet().toArray();
-    }
+
     /**
-     * 
-     * @param i
-     * set writers for logs different between each iterations 
+     * set writers for log files with different names between each iterations 
      */
     public void start(int i) {
     	worldNumber = i;
@@ -114,6 +103,16 @@ public class SimulationEngine extends SimState
 			e.printStackTrace();
 		}
     	PersonAgent.setPrinter("output/log-" + i + ".csv");
+    	start();
+    }
+    
+    public void start(){
+    	
+        super.start();
+    	PersonAgentMultiGroup.clear();
+    	PersonAgentMultiGroup.setWorldNumber(worldNumber);
+        seedPersonAgentArray();
+    	agentIdValues = personAgentMap.keySet().toArray();
     }
 
     public void finish(){
@@ -140,13 +139,12 @@ public class SimulationEngine extends SimState
     }
     
     /**
-     * 
-     * @param patternPerson
-     * @param times
-     * @param actualNumber
-     * @return
-     * 
      * multiply one agent and build group to aggregate wealth for that group
+     * changes uncertaintyMi and uncertaintySigma according to present worldNumber and worldsNumber at all
+     * @param patternPerson PersonAgent which is used as pattern to multiply
+     * @param times number of cloned PersonAgents
+     * @param groupId identifier of a group which could contain each of multiplied PersonAgent for summary purposes. At the end of each subsimulation there will be summary with mean wealth for groups.
+     * @return
      */
     void multiplyPeopleAgent(PersonAgent patternPerson, int times, Integer groupId) {
     	
@@ -159,14 +157,17 @@ public class SimulationEngine extends SimState
         PersonAgent p;
         
     	for(int number=0; (number<times); number++) {
+    		
     		p = new PersonAgent.Builder(random).wealth(wealth).willingnessToInitiateGame(willingnessToInitiateGame)
     				.uncertaintyMi(uncertaintyMi).uncertaintySigma(uncertaintySigma)
     				.gameCreationService(gcs).gameDecisionService(gds)
     				.build();
+    		
     		personAgentMap.put(p.getNumber(), p);
     		if(groupId != null)
     			PersonAgentMultiGroup.getPersonAgentMultiGroup(groupId,this).addAgent(p.getNumber());
             schedule.scheduleRepeating(p);
+            
             agentsWriter.println(p.toLogString());
     	}
     }
@@ -181,15 +182,7 @@ public class SimulationEngine extends SimState
 
 	public void setStepsLimit(int stepsLimit) {
 		this.stepsLimit = stepsLimit;
-	}
-
-	public int getPersonsLimit() {
-		return personsLimit;
-	}
-
-	public void setPersonsLimit(int personsLimit) {
-		this.personsLimit = personsLimit;
-	}    
+	}  
 	
 	public PersonAgent getPersonAgent(int index) {
 		return personAgentMap.get(index);
@@ -198,7 +191,9 @@ public class SimulationEngine extends SimState
 	public void setPersonAgent(int index, PersonAgent personAgent) {
 		personAgentMap.put(index, personAgent);
 	}
-    
+    /**
+     * This subclass parses list of string from csv, checks correctness, builds PersonAgents, contains them to multiply in the future
+     */
     private class RawAgent {
     	private int multiply;
     	private PersonAgent personAgent;
@@ -255,7 +250,7 @@ public class SimulationEngine extends SimState
 		    	    		if(as.get(i+1).trim().length()>1)
 		    	    			parameter = Double.parseDouble(as.get(i+1).trim());
 		    	    		else
-								System.out.println("[ERROR in input.csv at agent " + rawAgentNumber + "] Brak wartoœci \"" + as.get(i+1).trim() + "\" dla agenta jako parametr algorytmu wyboru gry");
+								System.out.println("[ERROR in input.csv at agent " + rawAgentNumber + "] Brak wartoœci dla agenta jako parametr algorytmu wyboru gry");
 		    	    			
 		    				builder = builder.gameDecisionService(new ChangingDecisionByMiImpl(parameter));
 						} break;
@@ -263,7 +258,7 @@ public class SimulationEngine extends SimState
 		    	    		if(as.get(i+1).trim().length()>1)
 		    	    			parameter = Double.parseDouble(as.get(i+1).trim());
 		    	    		else
-								System.out.println("[ERROR in input.csv at agent " + rawAgentNumber + "] Brak wartoœci \"" + as.get(i+1).trim() + "\" dla agenta jako parametr algorytmu wyboru gry");
+								System.out.println("[ERROR in input.csv at agent " + rawAgentNumber + "] Brak wartoœci dla agenta jako parametr algorytmu wyboru gry");
 		    	    			
 		    				builder = builder.gameDecisionService(new ChangingDecisionByMiAndSigmaImpl(parameter));
 						} break;
@@ -272,7 +267,7 @@ public class SimulationEngine extends SimState
 						}
 		    				
 		    		}
-	    		i+=2; //7
+	    		i+=2; //8
 	    		personAgent = builder.build();
     		}
     		else {

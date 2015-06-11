@@ -1,10 +1,4 @@
-/*
-  Copyright 2006 by Sean Luke and George Mason University
-  Licensed under the Academic Free License version 3.0
-  See the file "LICENSE" for more information
-*/
-
-package sp.simulation;
+package sp.simulation.agent;
 
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
@@ -12,6 +6,7 @@ import java.io.UnsupportedEncodingException;
 
 import ec.util.MersenneTwisterFast;
 import sim.engine.*;
+import sp.simulation.SimulationEngine;
 import sp.simulation.game.Game;
 import sp.simulation.game.GamePair;
 import sp.simulation.game.creation.GameCreationService;
@@ -19,13 +14,16 @@ import sp.simulation.game.creation.MiSymmetricalSimpleGameCreationImpl;
 import sp.simulation.game.creation.SimpleGameCreationImpl;
 import sp.simulation.game.decision.GameDecisionService;
 import sp.simulation.game.decision.SimpleDecisionByMiImpl;
+import sp.simulation.tools.Fairness;
+import sp.simulation.tools.Tools;
 
 public class PersonAgent implements Steppable
 {
     private static final long serialVersionUID = 1;
     
-    // the width and height will change later
 	private MersenneTwisterFast random = new MersenneTwisterFast();
+    private int step = 0;
+    private double lastWinning;
 
     private int number;
     private double wealth;
@@ -41,10 +39,10 @@ public class PersonAgent implements Steppable
 	private GameCreationService gameCreationService;
     
     private static PrintWriter writer;
-    private int step = 0;
-    //private double[] trustTable;
+    
+//    private double[] trustTable;
 
-    private double lastWinning;
+    
 	/**	in builder pattern we get MersenneTwisterFast random because as there is stated in documentation:
 	 * 
 	 * "The standard MT199937 seeding algorithm uses one of Donald Knuth’s plain-jane linear
@@ -52,6 +50,7 @@ public class PersonAgent implements Steppable
 	 * will initially be outputting a (very slightly) lower quality random number stream until it warms up. After
 	 * about 624 calls to the generator, it’ll be warmed up sufficiently. As a result, in SimState.start(), MASON
 	 * primes the MT generator for you by calling nextInt() 1249 times."
+	 * 
 	 */
     public static class Builder {
     	
@@ -127,15 +126,15 @@ public class PersonAgent implements Steppable
     	this.gameDecisionService = builder.gameDecisionService;
     	this.gameCreationService = builder.gameCreationService;
     	
-    	/*trustTable = new double[1000];
-    	for(int i = 0; i < 1000; i++) {
-    		trustTable[i]=0.01;
-    	}*/
+//    	trustTable = new double[1000];
+//    	for(int i = 0; i < 1000; i++) {
+//    		trustTable[i]=0.01;
+//    	}
     }
     
     /**
      * try to initiate the game - sometimes agents doesn't want to, willingnessToInitateGame decides how often he would initiate
-     * then check if agent wants to play - some games have to small chances to win
+     * then check if agent wants to play - some games have to small chances to win in agent's opinion
      * then propose game to random other agent and he checks if want to play that game
      * then play
      */
@@ -143,16 +142,15 @@ public class PersonAgent implements Steppable
     	step++;
         SimulationEngine simulationEngine = (SimulationEngine)state;
         
-        /*for(double i : trustTable) {
-    		i+=0.1;
-    	}*/
+//        for(double i : trustTable) {
+//    		i+=0.1;
+//    	}
     	GamePair gamePair = gameCreationService.createGame(this, random);
     	Game game = gamePair.getL();
     	Game opponentsGame = gamePair.getR();
 
         int personAgentIndex = getRandomPersonNumber(simulationEngine);
         String type = "";
-        
         winningInitiator = winningPartner = 0.0;
         
         if(ifInitiateGame()) {
@@ -161,7 +159,7 @@ public class PersonAgent implements Steppable
         				.playGameWithMe(number, opponentsGame)) {
         			winningInitiator = playGame(game);
                 	type = "PLAYED";
-        			///trustTable[personAgentIndex] = Tools.round(trustTable[personAgentIndex]+lastWinning);
+//        			trustTable[personAgentIndex] = Tools.round(trustTable[personAgentIndex]+lastWinning);
         		}
         		else {
                 	type = "NOT_PLAYED";
@@ -187,6 +185,12 @@ public class PersonAgent implements Steppable
     	return value;
     }
     
+    /**
+     * 
+     * @param gameInitiatorNumber identifier of game initiating agent
+     * @param game game proposed by game initiating agent
+     * @return information if game partner of game initiating agent wants to play proposed game
+     */
     public boolean playGameWithMe(int gameInitiatorNumber, Game game) {
     	if(gameDecisionService.ifPlayGame(this, game/*, trustTable[gameInitiatorNumber]*/)) {
     		winningPartner = playGame(game);
@@ -194,6 +198,7 @@ public class PersonAgent implements Steppable
     	}
     	else return false;
     }
+    
     private boolean ifInitiateGame() {
     	double x = random.nextDouble();
         return (x < willingnessToInitiateGame);

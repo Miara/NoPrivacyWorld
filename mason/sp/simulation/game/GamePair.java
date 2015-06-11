@@ -1,12 +1,13 @@
 package sp.simulation.game;
 
+/**
+ * container for two games. l - for initiator, r - for his partner
+ *
+ */
 public class GamePair {
 
 	private Game l;
 	private Game r;
-	
-//	public DoublePair() {
-//	}
 	
 	public GamePair(Game l, Game r) {
 		this.l = l;

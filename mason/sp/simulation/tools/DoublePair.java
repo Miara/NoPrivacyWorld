@@ -1,4 +1,4 @@
-package sp.simulation;
+package sp.simulation.tools;
 
 public class DoublePair {
 

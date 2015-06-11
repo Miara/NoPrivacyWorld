@@ -1,6 +1,6 @@
 package sp.simulation.game.decision;
 
-import sp.simulation.PersonAgent;
+import sp.simulation.agent.PersonAgent;
 import sp.simulation.game.Game;
 
 public interface GameDecisionService {
